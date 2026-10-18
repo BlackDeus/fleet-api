@@ -20,6 +20,13 @@ const PORT = 3000;
 const MQTT_URL = 'mqtt://localhost:1883';
 
 app.use(express.json());
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
 
 /*
  * ---------------------------------------------------------
@@ -65,7 +72,9 @@ app.get('/api/v1/telemetry', (req, res) => {
     metric,
     from,
     to,
-    limit = 100
+    limit = 100,
+    cursor,
+    pagination
   } = req.query;
 
   if (!device) {
@@ -78,18 +87,13 @@ app.get('/api/v1/telemetry', (req, res) => {
     Math.max(parseInt(limit, 10) || 100, 1),
     1000
   );
+  const cursorMode = pagination === 'cursor' || Boolean(cursor);
 
   let sql = `
-    SELECT
-      id,
-      device_id,
-      metric,
-      value,
-      ts
+    SELECT id, device_id, metric, value, ts
     FROM telemetry
     WHERE device_id = ?
   `;
-
   const params = [device];
 
   if (metric) {
@@ -97,28 +101,80 @@ app.get('/api/v1/telemetry', (req, res) => {
     params.push(metric);
   }
 
-  if (from) {
+  if (from !== undefined) {
+    const fromTs = Number(from);
+    if (!Number.isFinite(fromTs)) {
+      return res.status(400).json({ error: 'Параметр from має бути числом' });
+    }
     sql += ` AND ts >= ?`;
-    params.push(Number(from));
+    params.push(fromTs);
   }
 
-  if (to) {
+  if (to !== undefined) {
+    const toTs = Number(to);
+    if (!Number.isFinite(toTs)) {
+      return res.status(400).json({ error: 'Параметр to має бути числом' });
+    }
     sql += ` AND ts <= ?`;
-    params.push(Number(to));
+    params.push(toTs);
   }
 
-  sql += `
-    ORDER BY ts ASC
-    LIMIT ?
-  `;
+  if (cursor) {
+    let decoded;
+    try {
+      decoded = JSON.parse(Buffer.from(String(cursor), 'base64url').toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Некоректний курсор пагінації' });
+    }
+    if (!decoded || typeof decoded !== 'object' || !Number.isFinite(Number(decoded.ts)) || !Number.isFinite(Number(decoded.id))) {
+      return res.status(400).json({ error: 'Некоректний курсор пагінації' });
+    }
+    sql += ` AND (ts > ? OR (ts = ? AND id > ?))`;
+    params.push(Number(decoded.ts), Number(decoded.ts), Number(decoded.id));
+  }
 
-  params.push(safeLimit);
+  sql += ` ORDER BY ts ASC, id ASC LIMIT ?`;
+  params.push(cursorMode ? safeLimit + 1 : safeLimit);
 
   const rows = db.prepare(sql).all(...params);
+  if (!cursorMode) {
+    return res.json(rows);
+  }
 
-  res.json(rows);
+  const hasMore = rows.length > safeLimit;
+  const data = hasMore ? rows.slice(0, safeLimit) : rows;
+  const last = data[data.length - 1];
+  const nextCursor = hasMore && last
+    ? Buffer.from(JSON.stringify({ ts: Number(last.ts), id: Number(last.id) })).toString('base64url')
+    : null;
+
+  return res.json({
+    data,
+    next_cursor: nextCursor,
+    has_more: hasMore
+  });
 });
 
+// Average speed for the most recent time window (timestamps in the database are Unix seconds).
+app.get('/api/v1/devices/:deviceId/average-speed', (req, res) => {
+  const minutes = Math.min(Math.max(parseInt(req.query.minutes, 10) || 15, 1), 1440);
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - minutes * 60;
+  const result = db.prepare(`
+    SELECT AVG(CAST(value AS REAL)) AS average_speed, COUNT(*) AS samples
+    FROM telemetry
+    WHERE device_id = ? AND metric = 'speed' AND ts >= ? AND ts <= ?
+  `).get(req.params.deviceId, from, now);
+
+  return res.json({
+    device_id: req.params.deviceId,
+    minutes,
+    average_speed: result.samples ? Number(result.average_speed) : null,
+    samples: result.samples,
+    from,
+    to: now
+  });
+});
 
 /*
  * ---------------------------------------------------------

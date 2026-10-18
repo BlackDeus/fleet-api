@@ -1,8 +1,9 @@
-@"
 node_modules/
 .env
 .env.*
 !.env.example
 telemetry.db
 *.log
-"@ | Set-Content .gitignore
+client/dist/
+client/.vite/
+.vs/
