@@ -1,50 +1,66 @@
-# Fleet API — практична робота № 4
+# Fleet API — Practical Assignment No. 4
 
-Вебдашборд для моніторингу транспортного парку. Проєкт продовжує наявну структуру Node.js + Express + SQLite + MQTT + Socket.IO та додає React-інтерфейс із карткою автопарку, історією телеметрії, картою OpenStreetMap і CSV-експортом GPS-треку.
+A web dashboard for monitoring a vehicle fleet. This project extends the existing Node.js + Express + SQLite + MQTT + Socket.IO architecture and adds a React interface featuring a fleet overview, telemetry history, an OpenStreetMap map, and CSV export of GPS tracks.
 
-## Вимоги
+## Requirements
 
-- Node.js 20.19+ або 22.12+.
-- MQTT-брокер, доступний за `mqtt://localhost:1883`.
+- Node.js 20.19+ or 22.12+.
+- An MQTT broker accessible at `mqtt://localhost:1883`.
 - npm.
 
-## Встановлення
+## Installation
 
-У кореневій папці проєкту:
+In the project root directory, run:
 
 ```bash
 npm install
 ```
 
-У папці `client`:
+In the `client` directory, run:
 
 ```bash
 cd client
 npm install
 ```
 
-За потреби скопіюйте `client/.env.example` у `client/.env` та змініть `VITE_API_URL`.
+If necessary, copy `client/.env.example` to `client/.env` and update `VITE_API_URL`.
 
-## Запуск
+## Running the Application
 
-У першому терміналі, з кореня проєкту:
+In the first terminal, from the project root directory, run:
 
 ```bash
 npm start
 ```
 
-У другому терміналі:
+In the second terminal, run:
 
 ```bash
 cd client
 npm run dev
 ```
 
-Відкрийте адресу, яку покаже Vite (зазвичай `http://localhost:5173`). MQTT-підписка вже працює всередині `server.js`, тому в звичайному режимі достатньо запускати саме його. `subscriber.js` залишено як необов’язковий окремий інструмент для ізольованого тестування; за замовчуванням він вимкнений. Не запускайте два підписники одночасно. Якщо потрібно окремо тестувати `subscriber.js`, спочатку зупиніть `server.js`, а потім виконайте `RUN_STANDALONE_MQTT_SUBSCRIBER=true node subscriber.js` (PowerShell: `$env:RUN_STANDALONE_MQTT_SUBSCRIBER="true"; node subscriber.js`).
+Open the URL displayed by Vite (usually `http://localhost:5173`).
 
-## MQTT-формат
+The MQTT subscription is already implemented in `server.js`, so under normal operating conditions, you only need to run the server. `subscriber.js` is retained as an optional standalone tool for isolated testing and is disabled by default.
 
-Топік: `fleet/<device_id>/telemetry`.
+Do not run two subscribers simultaneously. If you need to test `subscriber.js` separately, stop `server.js` first, then execute:
+
+```bash
+RUN_STANDALONE_MQTT_SUBSCRIBER=true node subscriber.js
+```
+
+In PowerShell, use:
+
+```powershell
+$env:RUN_STANDALONE_MQTT_SUBSCRIBER="true"; node subscriber.js
+```
+
+## MQTT Message Format
+
+Topic: `fleet/<device_id>/telemetry`
+
+Example message:
 
 ```json
 {
@@ -55,17 +71,41 @@ npm run dev
 }
 ```
 
-Для карток і графіків додатково надсилайте метрики `speed` (число, км/год), `fuel` (число, відсоток) та `engine` (наприклад, `on`/`off`). `ts` має бути Unix timestamp у секундах. На екрані порожнього списку є кнопки для копіювання тестових JSON-повідомлень; їх можна публікувати в MQTT Explorer у той самий топік. Якщо певної метрики в базі немає, інтерфейс показує `—`, а не вигадане значення.
+For the dashboard cards and charts, also publish the following metrics:
 
-## API
+- `speed` — a numeric value in km/h.
+- `fuel` — a numeric value representing the fuel level as a percentage.
+- `engine` — for example, `on` or `off`.
 
-- `GET /api/v1/devices` — список пристроїв.
-- `GET /api/v1/telemetry?device=truck-07&from=<unix>&to=<unix>&limit=1000` — історія телеметрії, сумісний старий формат масиву.
-- `GET /api/v1/telemetry?device=truck-07&from=<unix>&to=<unix>&limit=1000&pagination=cursor` — курсорна пагінація у форматі `{ data, next_cursor, has_more }`.
-- `GET /api/v1/devices/truck-07/average-speed?minutes=15` — середня швидкість за останні 15 хвилин або інше задане вікно.
+The `ts` field must contain a Unix timestamp in seconds.
 
-## Рівень 5
+The empty-state screen includes buttons for copying sample JSON messages. These messages can be published to the same topic using MQTT Explorer.
 
-GPS-трек формується з історичних записів `gps`, а швидкість зіставляється за найближчою часовою міткою `speed`. Для зменшення кількості GPS-точок використовується Douglas–Peucker; кількість точок для карти та експорту обмежується 500. CSV містить колонки `ts`, `lat`, `lon`, `speed`.
+If a particular metric is not available in the database, the interface displays `—` instead of an invented value.
 
-Після встановлення залежностей перевірте frontend командою `npm run build` з папки `client` та `npm run lint` для перевірки стилю.
+## API Endpoints
+
+- `GET /api/v1/devices` — returns a list of devices.
+- `GET /api/v1/telemetry?device=truck-07&from=<unix>&to=<unix>&limit=1000` — returns telemetry history in the legacy array format for backward compatibility.
+- `GET /api/v1/telemetry?device=truck-07&from=<unix>&to=<unix>&limit=1000&pagination=cursor` — returns telemetry history using cursor-based pagination in the format `{ data, next_cursor, has_more }`.
+- `GET /api/v1/devices/truck-07/average-speed?minutes=15` — returns the average speed over the last 15 minutes or another specified time window.
+
+## GPS Tracking
+
+The GPS track is generated from historical `gps` records. Speed values are matched using the nearest `speed` timestamp.
+
+The Douglas–Peucker algorithm is used to reduce the number of GPS points. The number of points displayed on the map and included in the export is limited to 500.
+
+The exported CSV file contains the following columns:
+
+`ts`, `lat`, `lon`, `speed`
+
+## Build and Code Quality Checks
+
+After installing the dependencies, verify the frontend by running `npm run build` from the `client` directory.
+
+To check code style, run:
+
+```bash
+npm run lint
+```
