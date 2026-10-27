@@ -1,4 +1,4 @@
-# Fleet API — Practical Assignment No. 4
+# Fleet API
 
 A web dashboard for monitoring a vehicle fleet. This project extends the existing Node.js + Express + SQLite + MQTT + Socket.IO architecture and adds a React interface featuring a fleet overview, telemetry history, an OpenStreetMap map, and CSV export of GPS tracks.
 
