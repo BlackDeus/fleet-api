@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "534206910291",
+    "project_id": "fleet-monitoring-2d52d",
+    "storage_bucket": "fleet-monitoring-2d52d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:534206910291:android:a76faece728bd450b79ba6",
+        "android_client_info": {
+          "package_name": "com.example.fleet_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBvORK7nZ4Jp-FmjGtQ9peQ_nhaU5XsZ58"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
